@@ -1,4 +1,6 @@
 import manim as _m
+import numpy as np
+import math
 
 # The different particles
 PROTON = 0
@@ -39,8 +41,39 @@ def create_particle(type, size_multiplier=0.3):
     circle.set_stroke(color[0], opacity=1)
     circle.set_fill(color[1], opacity=1)
     return circle
+    
+# Generates a pattern of circles within circles
+def _generate_full_nucleus_pattern(number_of_particles, nucleon_separation, particle_num_difference):
+    # The pattern consists of n circles, each with a different number of particles
+    # Let's see how many particles there are in each circle
+    particle_nums = []
+    particle_num_in_layer = 1
+    while True:
+        # If ran out of particles, add the remaining ones
+        if number_of_particles <= particle_num_in_layer:
+            particle_nums.append(number_of_particles)
+            break
+        # Reduce the number of available particles
+        number_of_particles -= particle_num_in_layer
+        particle_nums.append(particle_num_in_layer)
+        
+        
+        particle_num_in_layer += particle_num_difference
 
-def create_nucleus(num_protons, num_neutrons, radius, nucleon_separation, num_tries=3, nucleon_size_multiplier=0.3, seed=1):
+    out = []
+    # For each of circles, generate particles evenly around the circle, and then displace them
+    for particle_num in particle_nums:
+        # Pick the radius in such a way that the nucleon_separation is the distance between two consequtive nucleons
+        # Arc length is nucleon_separation, and arc length = radius * angle
+        # Each small angle is 2pi/particle_num
+        radius = nucleon_separation / (2*np.pi) * particle_num
+        for angle in np.linspace(0, 2*np.pi, particle_num, endpoint=False):
+            x = radius * np.cos(angle)
+            y = radius * np.sin(angle)
+            out.append((x, y))
+    return out
+
+def create_nucleus(num_protons, num_neutrons, nucleon_separation, particle_num_difference, nucleon_size_multiplier=0.3, seed=1):
     import random
     import math
     random.seed(seed)
@@ -51,52 +84,16 @@ def create_nucleus(num_protons, num_neutrons, radius, nucleon_separation, num_tr
     nucleon_types = [PROTON] * num_protons + [NEUTRON] * num_neutrons
     random.shuffle(nucleon_types)
 
-    # Now, generate the positions of nucleons
-    # We are trying to generate new nucleons in positions that are the furthest from other nucleon positions
-    
-    # Generate an x and y somewhere in the atom
-    def gen_position_candidate():
-        distance = random.uniform(0, radius)
-        rotation = random.uniform(0, 2 * math.pi)
-        return (math.cos(rotation) * distance, math.sin(rotation) * distance)
+    pattern = _generate_full_nucleus_pattern(num_protons + num_neutrons, nucleon_separation, particle_num_difference)
+    # shuffle the pattern as well to introduce a random z-index to the nucleons (for more interesting overlapping)
+    random.shuffle(pattern)
 
-    # Get the score of the distance between two points
-    # NOTE: larger score is better
-    def get_score(c1, c2):
-        # We want the distance to be close to nucleon_separation
-        x1, y1 = c1
-        x2, y2 = c2
-        squared_dist = (x1 - x2) ** 2 + (y1 - y2) ** 2
-        # The score is the squared difference between the squared dist and squared nucleon separation
-        # The value is negative because larger score is better
-        return - (sq_nucleon_separation - squared_dist) ** 2
-        
-    # Get the combined score for all nucleons for a given coord
-    # NOTE: larger score is better
-    def get_combined_score(nucleon_coords, coords):
-        total = 0
-        for c in nucleon_coords:
-            total += get_score(c, coords)
-        return total
-
-    # For each nucleon, try num_tries times to put it in a place, pick the place with the largest score
     out = _m.VGroup()
-    positions = []
-    
-    for nucleon_type in nucleon_types:
-        # Find the best scoring try
-        position_candidates = [gen_position_candidate() for _ in range(num_tries)]
-        scores = list(map(lambda c: get_combined_score(positions, c), position_candidates))
-        best_score = max(scores)
-
-        # Find the best scoring position
-        position = position_candidates[scores.index(best_score)]
-
-        positions.append(position)
-
-        nucleon = create_particle(nucleon_type, size_multiplier=nucleon_size_multiplier)
-        nucleon.shift(position[0] * _m.UP + position[1] * _m.RIGHT)
-        out.add(nucleon)
-
+    for nucleon_type, position in zip(nucleon_types, pattern):
+        x, y = position
+        proton = create_particle(nucleon_type, nucleon_size_multiplier)
+        proton.shift(x * _m.RIGHT, y * _m.UP)
+        out.add(proton)
+        
     return out
     
