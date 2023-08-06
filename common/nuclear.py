@@ -9,43 +9,53 @@ NEUTRON = 1
 ELECTRON = 2
 POSITRON = 3
 
-_colors_by_charge = {
-    # [oultine, fill]
-    1: [_m.RED, "#ce1616"],
-    0: [_m.WHITE, "#e8e8e8"],
-    -1: [_m.BLUE, "#5d96ea"],
-}
 
-def _is_nucleon(type):
-    return type in [PROTON, NEUTRON]
+class Particle(_m.Circle):
+    _colors_by_charge = {
+        # [oultine, fill]
+        1: [_m.RED, "#ce1616"],
+        0: [_m.WHITE, "#e8e8e8"],
+        -1: [_m.BLUE, "#5d96ea"],
+    }
 
-def _get_charge(type):
-    if type in [NEUTRON]:
-        return 0
-    elif type in [ELECTRON]:
-        return -1
-    else:
-        return 1
-
-def _get_drawn_size(type):
-    if _is_nucleon(type):
-        return 1
-    else:
-        return 0.5
+    def _is_nucleon(type):
+        return type in [PROTON, NEUTRON]
     
-def create_particle(type, size_multiplier=0.3):
-    charge = _get_charge(type)
-    color = _colors_by_charge[charge]
-    drawn_size = size_multiplier * _get_drawn_size(type)
+    def _get_charge(type):
+        if type in [NEUTRON]:
+            return 0
+        elif type in [ELECTRON]:
+            return -1
+        else:
+            return 1
     
-    circle = _m.Circle(radius=drawn_size)
-    circle.set_stroke(color[0], opacity=1)
-    circle.set_fill(color[1], opacity=1)
-    return circle
+    def _get_drawn_size(type):
+        if Particle._is_nucleon(type):
+            return 1
+        else:
+            return 0.5
+            
+    def __init__(self, type, size_multiplier=0.3):
+        self.charge = _get_charge(type)
+        color = _colors_by_charge[self.charge]
+        drawn_size = size_multiplier * _get_drawn_size(type)
 
-class Nucleus():
-    # Generates a pattern of circles within circles
+        super().__init__(radius=drawn_size)
+        
+        self.set_stroke(color[0], opacity=1)
+        self.set_fill(color[1], opacity=1)
+
+class Nucleus(_m.VGroup):
+    class Nucleon(Particle):
+        """Represents a particle with its offset from the centre of the nucleus"""
+        def __init__(self, type, size_multiplier, coords):
+            super().__init__(type, size_multiplier)
+            self.coords = coords
+
     def _generate_full_nucleus_pattern(number_of_particles, nucleon_separation, particle_num_difference):
+        """Generate a list of positions that evenly spread `number_of_particles` particles
+        This is done by drawing progressively larger concentric circles of particles
+        """
         # The pattern consists of n circles, each with a different number of particles
         # Let's see how many particles there are in each circle
         particle_nums = []
@@ -78,7 +88,6 @@ class Nucleus():
     def __init__(self, num_protons, num_neutrons, nucleon_separation, particle_num_difference, nucleon_size_multiplier=0.3, seed=1):
         super().__init__()
         self.nucleons = []
-        self.vgroup = _m.VGroup()
         random.seed(seed)
     
         sq_nucleon_separation = nucleon_separation ** 2
@@ -93,10 +102,10 @@ class Nucleus():
     
         for nucleon_type, position in zip(nucleon_types, pattern):
             x, y = position
-            nucleon = create_particle(nucleon_type, nucleon_size_multiplier)
+            nucleon = Nucleus.Nucleon(nucleon_type, nucleon_size_multiplier, position)
             nucleon.shift(x * _m.RIGHT, y * _m.UP)
-            self.vgroup.add(nucleon)
+            self.add(nucleon)
             self.nucleons.append(nucleon)
 
-    def get_create_anims(self):
+    def create_anims(self):
         return map(lambda nucleon: _m.Create(nucleon), self.nucleons)
