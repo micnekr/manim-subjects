@@ -37,13 +37,13 @@ class Particle(_m.Circle):
         else:
             return 0.5
             
-    def __init__(self, type, size_multiplier=0.3, **kwargs):
+    def __init__(self, type, size_multiplier, **kwargs):     
+        radius = Particle._get_drawn_size(type) * size_multiplier
+        super().__init__(radius=radius, **kwargs)
+        
         self.type = type
         self.charge = Particle._get_charge(type)
         color = Particle._colors_by_charge[self.charge]
-        drawn_size = size_multiplier * Particle._get_drawn_size(type)
-
-        super().__init__(radius=drawn_size, **kwargs)
         
         self.set_stroke(color[0], opacity=1)
         self.set_fill(color[1], opacity=1)
@@ -54,6 +54,8 @@ class Nucleus(_m.VGroup):
         def __init__(self, type, size_multiplier, coords, **kwargs):
             super().__init__(type, size_multiplier, **kwargs)
             self.coords = coords
+            x, y = coords
+            self.shift(x * _m.RIGHT, y * _m.UP)
 
     def _generate_full_nucleus_pattern(number_of_particles, nucleon_separation, particle_num_difference):
         """Generate a list of positions that evenly spread `number_of_particles` particles
@@ -96,7 +98,7 @@ class Nucleus(_m.VGroup):
         super().__init__()
         self.nucleons = []
 
-    def init_from_nums(self, num_protons, num_neutrons, nucleon_separation, particle_num_difference, shuffle=True, nucleon_size_multiplier=0.3, seed=1):
+    def init_from_nums(self, num_protons, num_neutrons, nucleon_separation, particle_num_difference, nucleon_size_multiplier, shuffle=True, seed=1):
         random.seed(seed)
         self.nucleon_separation = nucleon_separation
         self.particle_num_difference = particle_num_difference
@@ -125,15 +127,13 @@ class Nucleus(_m.VGroup):
             nucleons_in_layer = []
             for position in positions_in_layer:
                 nucleon_type = nucleon_types[i]
-                x, y = position
                 nucleon = Nucleus.Nucleon(nucleon_type, nucleon_size_multiplier, position, z_index=z_indices[i])
-                nucleon.shift(x * _m.RIGHT, y * _m.UP)
                 self.add(nucleon)
                 nucleons_in_layer.append(nucleon)
                 i += 1
             self.nucleons.append(nucleons_in_layer)
 
-    def init_from_nucleons(self, nucleons_list, nucleon_separation, particle_num_difference, shuffle, seed=1,  nucleon_size_multiplier=0.3):
+    def init_from_nucleons(self, nucleons_list, nucleon_separation, particle_num_difference, nucleon_size_multiplier, shuffle, seed=1):
         random.seed(seed)
         self.nucleon_separation = nucleon_separation
         self.particle_num_difference = particle_num_difference
@@ -202,9 +202,9 @@ class Nucleus(_m.VGroup):
         daughter2_nucleons = [nucleons_list[i] for i in daughter2_nucleon_indices]
         
         daughter1 = Nucleus().init_from_nucleons(
-            daughter1_nucleons, self.nucleon_separation, self.particle_num_difference, shuffle1, seed, self.nucleon_size_multiplier)
+            daughter1_nucleons, self.nucleon_separation, self.particle_num_difference, self.nucleon_size_multiplier, shuffle1, seed)
         daughter2 = Nucleus().init_from_nucleons(
-            daughter2_nucleons, self.nucleon_separation, self.particle_num_difference, shuffle2, seed, self.nucleon_size_multiplier)
+            daughter2_nucleons, self.nucleon_separation, self.particle_num_difference, self.nucleon_size_multiplier, shuffle2, seed)
 
         daughter1_nucleons = daughter1.get_nucleons_list()
         daughter2_nucleons = daughter2.get_nucleons_list()
@@ -222,3 +222,9 @@ class Nucleus(_m.VGroup):
                 daughter2_pairs.append((nucleon, new_nucleon))
 
         return (daughter1, daughter2, daughter1_pairs, daughter2_pairs)
+
+    def find_closest_nucleon(self, position, filter_type=None):
+        nucleons = self.get_nucleons_list()
+        if filter_type is not None:
+            nucleons = filter(lambda n: n.type == filter_type, nucleons)
+        return min(nucleons, key=lambda n: Nucleus._sq_dist(n.coords, position))
