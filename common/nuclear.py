@@ -36,9 +36,10 @@ class Particle(_m.Circle):
             return 0.5
             
     def __init__(self, type, size_multiplier=0.3):
-        self.charge = _get_charge(type)
-        color = _colors_by_charge[self.charge]
-        drawn_size = size_multiplier * _get_drawn_size(type)
+        self.type = type
+        self.charge = Particle._get_charge(type)
+        color = Particle._colors_by_charge[self.charge]
+        drawn_size = size_multiplier * Particle._get_drawn_size(type)
 
         super().__init__(radius=drawn_size)
         
@@ -71,10 +72,11 @@ class Nucleus(_m.VGroup):
             
             
             particle_num_in_layer += particle_num_difference
-    
+
         out = []
         # For each of circles, generate particles evenly around the circle
-        for particle_num in particle_nums:
+        # Reverse the layer order to allow the central atoms to cover other atoms if no shuffling has been enabled
+        for particle_num in reversed(particle_nums):
             # Pick the radius in such a way that the nucleon_separation is the distance between two consequtive nucleons
             # Arc length is nucleon_separation, and arc length = radius * angle
             # Each small angle is 2pi/particle_num
@@ -85,12 +87,15 @@ class Nucleus(_m.VGroup):
                 out.append((x, y))
         return out
     
-    def __init__(self, num_protons, num_neutrons, nucleon_separation, particle_num_difference, nucleon_size_multiplier=0.3, seed=1):
+    def __init__(self):
         super().__init__()
         self.nucleons = []
+
+    def init_from_nums(self, num_protons, num_neutrons, nucleon_separation, particle_num_difference, nucleon_size_multiplier=0.3, seed=1):
         random.seed(seed)
-    
-        sq_nucleon_separation = nucleon_separation ** 2
+        self.nucleon_separation = nucleon_separation
+        self.particle_num_difference = particle_num_difference
+        self.nucleon_size_multiplier = nucleon_size_multiplier
     
         # Make a random list of neutrons and protons
         nucleon_types = [PROTON] * num_protons + [NEUTRON] * num_neutrons
@@ -106,6 +111,82 @@ class Nucleus(_m.VGroup):
             nucleon.shift(x * _m.RIGHT, y * _m.UP)
             self.add(nucleon)
             self.nucleons.append(nucleon)
+        return self
 
+    def init_from_nucleons(self, new_nucleons, nucleon_separation, particle_num_difference,  nucleon_size_multiplier=0.3):
+        self.nucleon_separation = nucleon_separation
+        self.particle_num_difference = particle_num_difference
+        self.nucleon_size_multiplier = nucleon_size_multiplier
+        
+        pattern = Nucleus._generate_full_nucleus_pattern(len(new_nucleons), nucleon_separation, particle_num_difference)
+        # 
+        for nucleon, position in zip(new_nucleons, pattern):
+            x, y = position
+            nucleon = Nucleus.Nucleon(nucleon.type, nucleon_size_multiplier, position)
+            nucleon.shift(x * _m.RIGHT, y * _m.UP)
+            self.add(nucleon)
+            self.nucleons.append(nucleon)
+        return self
+
+    def _enforce_init(self):
+        if len(self.nucleons) == 0:
+            raise Exception("Please initialise the nucleus before using it")
+    
     def create_anims(self):
+        self._enforce_init()
         return map(lambda nucleon: _m.Create(nucleon), self.nucleons)
+
+    def _sq_dist(c1, c2):
+        x1, y1 = c1
+        x2, y2 = c2
+        return (x1 - x2) ** 2 + (y1 - y2) ** 2
+    
+    def decay(self, num_protons, num_neutrons, start_from_nucleon_index):
+        """Returns two daughter nuclei, one of which has the specified number of protons and neutrons, with Transform animations to get from one to another"""
+        self._enforce_init()
+        start_position = self.nucleons[start_from_nucleon_index].coords
+        # Sort the nuclei by distance to the start position
+        # Note: using squared distance to save computing power
+        indices_sorted_by_distance = sorted(range(len(self.nucleons)), key=lambda i: Nucleus._sq_dist(start_position, self.nucleons[i].coords))
+
+        # Collect the indices into the first daughter nucleus by a quota
+        neutrons_left = num_neutrons
+        protons_left = num_protons
+        daughter1_nucleon_indices = []
+        daughter2_nucleon_indices = []
+        for i in indices_sorted_by_distance:
+            type = self.nucleons[i].type
+            nucleon = self.nucleons[i]
+            if type == PROTON and protons_left > 0:
+                protons_left -=1
+                daughter1_nucleon_indices.append(i)
+            elif type == NEUTRON and neutrons_left > 0:
+                neutrons_left -=1
+                daughter1_nucleon_indices.append(i)
+            else:
+                # If the quota has already been met, add it to the other daughter nucleus
+                daughter2_nucleon_indices.append(i)
+        # Sort each list so that nucleons do not change position too much
+        daughter1_nucleon_indices.sort()
+        daughter2_nucleon_indices.sort()
+        
+        daughter1_nucleons = [self.nucleons[i] for i in daughter1_nucleon_indices]
+        daughter2_nucleons = [self.nucleons[i] for i in daughter2_nucleon_indices]
+        
+        daughter1 = Nucleus().init_from_nucleons(
+            daughter1_nucleons, self.nucleon_separation, self.particle_num_difference,  self.nucleon_size_multiplier)
+        daughter2 = Nucleus().init_from_nucleons(
+            daughter2_nucleons, self.nucleon_separation, self.particle_num_difference,  self.nucleon_size_multiplier)
+
+        daughter1_pairs = []
+        daughter2_pairs = []
+        # Go through each original nucleon and find the daughter nucleon it ended up being
+        for i, nucleon in enumerate(self.nucleons):
+            if i in daughter1_nucleon_indices:
+                new_nucleon = daughter1.nucleons[daughter1_nucleon_indices.index(i)]
+                daughter1_pairs.append((nucleon, new_nucleon))
+            else:
+                new_nucleon = daughter2.nucleons[daughter2_nucleon_indices.index(i)]
+                daughter2_pairs.append((nucleon, new_nucleon))
+                
+        return (daughter1, daughter2, daughter1_pairs, daughter2_pairs)
