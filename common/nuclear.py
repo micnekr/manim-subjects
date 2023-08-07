@@ -36,7 +36,7 @@ class Particle(_m.Circle):
             return 1
         else:
             return 0.5
-            
+    
     def __init__(self, type, size_multiplier, **kwargs):     
         radius = Particle._get_drawn_size(type) * size_multiplier
         super().__init__(radius=radius, **kwargs)
@@ -47,6 +47,29 @@ class Particle(_m.Circle):
         
         self.set_stroke(color[0], opacity=1)
         self.set_fill(color[1], opacity=1)
+
+class ParticleLabel(_m.MathTex):
+    
+    def _get_label_tex(type):
+        if type == ELECTRON:
+            return r"e^-"
+        elif type == POSITRON:
+            return r"e^+"
+        elif type == PROTON:
+            return r"p^+"
+        elif type == NEUTRON:
+            return r"n"
+        else:
+            return ""
+        
+    def __init__(self, particle, font_size, label_override=None):
+        if label_override is not None:
+            label_tex = label_override
+        else:
+            label_tex = ParticleLabel._get_label_tex(particle.type)
+        super().__init__(label_tex, font_size=font_size, z_index=particle.z_index + 1)
+        self.move_to(particle)
+        self.add_updater(lambda x: x.move_to(particle))
 
 class Nucleus(_m.VGroup):
     class Nucleon(Particle):
