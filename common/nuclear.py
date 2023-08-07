@@ -76,6 +76,7 @@ class Nucleus(_m.VGroup):
         out = []
         # For each of circles, generate particles evenly around the circle
         # Reverse the layer order to allow the central atoms to cover other atoms if no shuffling has been enabled
+        # This happens because central atoms are added last
         for particle_num in reversed(particle_nums):
             # Pick the radius in such a way that the nucleon_separation is the distance between two consequtive nucleons
             # Arc length is nucleon_separation, and arc length = radius * angle
@@ -113,13 +114,15 @@ class Nucleus(_m.VGroup):
             self.nucleons.append(nucleon)
         return self
 
-    def init_from_nucleons(self, new_nucleons, nucleon_separation, particle_num_difference,  nucleon_size_multiplier=0.3):
+    def init_from_nucleons(self, new_nucleons, nucleon_separation, particle_num_difference, shuffle, seed=1,  nucleon_size_multiplier=0.3):
         self.nucleon_separation = nucleon_separation
         self.particle_num_difference = particle_num_difference
         self.nucleon_size_multiplier = nucleon_size_multiplier
         
         pattern = Nucleus._generate_full_nucleus_pattern(len(new_nucleons), nucleon_separation, particle_num_difference)
-        # 
+        if shuffle:
+            random.seed(seed)
+            random.shuffle(pattern)
         for nucleon, position in zip(new_nucleons, pattern):
             x, y = position
             nucleon = Nucleus.Nucleon(nucleon.type, nucleon_size_multiplier, position)
@@ -141,10 +144,8 @@ class Nucleus(_m.VGroup):
         x2, y2 = c2
         return (x1 - x2) ** 2 + (y1 - y2) ** 2
     
-    def decay(self, num_protons, num_neutrons, start_from_nucleon_index):
+    def decay(self, num_protons, num_neutrons, start_position, shuffle1=True, shuffle2=True, seed=1):
         """Returns two daughter nuclei, one of which has the specified number of protons and neutrons, with Transform animations to get from one to another"""
-        self._enforce_init()
-        start_position = self.nucleons[start_from_nucleon_index].coords
         # Sort the nuclei by distance to the start position
         # Note: using squared distance to save computing power
         indices_sorted_by_distance = sorted(range(len(self.nucleons)), key=lambda i: Nucleus._sq_dist(start_position, self.nucleons[i].coords))
@@ -174,9 +175,9 @@ class Nucleus(_m.VGroup):
         daughter2_nucleons = [self.nucleons[i] for i in daughter2_nucleon_indices]
         
         daughter1 = Nucleus().init_from_nucleons(
-            daughter1_nucleons, self.nucleon_separation, self.particle_num_difference,  self.nucleon_size_multiplier)
+            daughter1_nucleons, self.nucleon_separation, self.particle_num_difference, shuffle1, seed, self.nucleon_size_multiplier)
         daughter2 = Nucleus().init_from_nucleons(
-            daughter2_nucleons, self.nucleon_separation, self.particle_num_difference,  self.nucleon_size_multiplier)
+            daughter2_nucleons, self.nucleon_separation, self.particle_num_difference, shuffle2, seed, self.nucleon_size_multiplier)
 
         daughter1_pairs = []
         daughter2_pairs = []
