@@ -181,9 +181,9 @@ class Nucleus(_m.VGroup):
         if len(self.nucleons) == 0:
             raise Exception("Please initialise the nucleus before using it")
     
-    def create_anims(self):
+    def create_anims(self, anim):
         self._enforce_init()
-        return map(lambda nucleon: _m.Create(nucleon), self.get_nucleons_list())
+        return map(lambda nucleon: anim(nucleon), self.get_nucleons_list())
 
     def _sq_dist(c1, c2):
         x1, y1 = c1
