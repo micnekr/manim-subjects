@@ -117,6 +117,9 @@ class Nucleus(_m.VGroup):
             # Arc length is nucleon_separation, and arc length = radius * angle
             # Each small angle is 2pi/particle_num
             radius = nucleon_separation / (2*np.pi) * particle_num
+            # Place the central nucleon in the center
+            if particle_num == 1:
+                radius = 0
             layer = []
             for angle in np.linspace(0, 2*np.pi, particle_num, endpoint=False):
                 x = radius * np.cos(angle)
