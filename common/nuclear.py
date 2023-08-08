@@ -10,7 +10,7 @@ PROTON = 0
 NEUTRON = 1
 ELECTRON = 2
 POSITRON = 3
-
+NEUTRINO = 4
 
 class Particle(_m.Circle):
     _colors_by_charge = {
@@ -24,12 +24,12 @@ class Particle(_m.Circle):
         return type in [PROTON, NEUTRON]
     
     def _get_charge(type):
-        if type in [NEUTRON]:
-            return 0
+        if type in [PROTON, POSITRON]:
+            return 1
         elif type in [ELECTRON]:
             return -1
         else:
-            return 1
+            return 0
     
     def _get_drawn_size(type):
         if Particle._is_nucleon(type):
@@ -37,14 +37,22 @@ class Particle(_m.Circle):
         else:
             return 0.5
     
-    def __init__(self, type, size_multiplier, **kwargs):     
-        radius = Particle._get_drawn_size(type) * size_multiplier
-        super().__init__(radius=radius, **kwargs)
+    def __init__(self, type, size_multiplier, **kwargs): 
+        super().__init__(radius=1, **kwargs)
+
+        self.size_multiplier = size_multiplier
+        
+        self.set_particle_type(type)
+
+    def set_particle_type(self, type):
+        # Change the radius
+        new_radius = Particle._get_drawn_size(type) * self.size_multiplier
+        self.scale(new_radius / self.radius)
+        self.radius = new_radius
         
         self.type = type
         self.charge = Particle._get_charge(type)
         color = Particle._colors_by_charge[self.charge]
-        
         self.set_stroke(color[0], opacity=1)
         self.set_fill(color[1], opacity=1)
 
@@ -62,12 +70,12 @@ class ParticleLabel(_m.MathTex):
         else:
             return ""
         
-    def __init__(self, particle, font_size, label_override=None):
+    def __init__(self, particle, font_size, label_override=None, **kwargs):
         if label_override is not None:
             label_tex = label_override
         else:
             label_tex = ParticleLabel._get_label_tex(particle.type)
-        super().__init__(label_tex, font_size=font_size, z_index=particle.z_index + 1)
+        super().__init__(label_tex, font_size=font_size, z_index=particle.z_index + 1, **kwargs)
         self.move_to(particle)
         self.add_updater(lambda x: x.move_to(particle))
 
